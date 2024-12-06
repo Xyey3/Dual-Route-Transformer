@@ -24,7 +24,6 @@ python -u run.py \
   --learning_rate 0.0001 \
   --itr 1
 
-
 python -u run.py \
   --is_training 1 \
   --root_path ./dataset/weather/ \
@@ -47,7 +46,6 @@ python -u run.py \
   --learning_rate 0.0001 \
   --itr 1
 
-
 python -u run.py \
   --is_training 1 \
   --root_path ./dataset/weather/ \
@@ -69,7 +67,6 @@ python -u run.py \
   --batch_size 32 \
   --learning_rate 0.0001 \
   --itr 1
-
 
 python -u run.py \
   --is_training 1 \

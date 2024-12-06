@@ -1,7 +1,7 @@
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0
 
 model_name=iCrossformer
-seg_num=6
+seg_num=3
 
 python -u run.py \
   --is_training 1 \
@@ -21,8 +21,10 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
+  --batch_size 32 \
   --learning_rate 0.0002 \
   --itr 1
+#mse:0.19517016410827637, mae:0.23343588411808014
 
 python -u run.py \
   --is_training 1 \
@@ -42,8 +44,11 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
+  --batch_size 32 \
   --learning_rate 0.0002 \
   --itr 1
+#mse:0.2305482178926468, mae:0.26018059253692627
+
 
 python -u run.py \
   --is_training 1 \
@@ -63,8 +68,10 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
+  --batch_size 32 \
   --learning_rate 0.0002 \
   --itr 1
+#mse:0.24104715883731842, mae:0.2701610326766968
 
 python -u run.py \
   --is_training 1 \
@@ -84,5 +91,7 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
+  --batch_size 32 \
   --learning_rate 0.0002 \
   --itr 1
+#mse:0.24601921439170837, mae:0.2752878665924072

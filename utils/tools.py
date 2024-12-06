@@ -1,5 +1,6 @@
 import os
-
+import math
+import random
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -74,7 +75,6 @@ class StandardScaler():
     def inverse_transform(self, data):
         return (data * self.std) + self.mean
 
-
 def visual(true, preds=None, name='./pic/test.pdf'):
     """
     Results visualization
@@ -85,6 +85,65 @@ def visual(true, preds=None, name='./pic/test.pdf'):
         plt.plot(preds, label='Prediction', linewidth=2)
     plt.legend()
     plt.savefig(name, bbox_inches='tight')
+
+def visualize_attention(layers_attns, save_path="multi_attention_visualization.pdf"):
+    """
+    可视化多个层的注意力矩阵并保存为单独的 PDF 文件。
+    随机选择一个样本进行可视化。
+
+    参数：
+    - layers_attns: 列表，每个元素是一个元组，包含多个注意力矩阵，每个注意力矩阵形状分别为 (num_variates, num_heads, seg_num, seg_num), (seg_num, num_heads, num_variates, num_variates)。
+    - save_path: 保存 PDF 文件的路径。
+    """
+    sample_idx1 = random.randint(0, layers_attns[0][0].shape[0] - 1)
+    sample_idx2 = random.randint(0, layers_attns[0][0].shape[2] - 1)
+    # sample_idx1 = 0
+    # sample_idx2 = 2
+    for layer_idx, attns in enumerate(layers_attns):  # 遍历每一层
+        for attn_idx, attn in enumerate(attns):  # 遍历每层中的每个 attention
+            _, num_heads, _, _ = attn.shape
+            if attn_idx == 0:
+                attn_sample = attn[sample_idx1]
+            else:
+                attn_sample = attn[sample_idx2]
+
+            k=1
+            # 定义子图布局为两行
+            ncols = math.ceil(num_heads / k)  # 每行的列数
+            fig = plt.figure(figsize=(6 * ncols, 9))
+            gs = fig.add_gridspec(k, ncols + 1, width_ratios=[1] * ncols + [0.1])  # 添加显色棒一列
+            
+            # fig.suptitle(f"Layer {layer_idx + 1}, Attention {attn_idx + 1}, Random Sample {sample_idx + 1}", fontsize=16)
+
+            vmin, vmax = attn_sample.min().item(), attn_sample.max().item()
+            axes = []
+
+            for row in range(k):
+                for col in range(ncols):
+                    if len(axes) < num_heads:  # 限制为 num_heads 个图
+                        ax = fig.add_subplot(gs[row, col])
+                        axes.append(ax)
+
+            for head_idx, ax in enumerate(axes):
+                cax = ax.matshow(attn_sample[head_idx].cpu(), cmap="viridis", vmin=vmin, vmax=vmax)
+                ax.set_title(f"Head {head_idx + 1}", fontsize=12)
+                ax.set_xlabel("Key Position")
+                ax.set_ylabel("Query Position")
+
+            # 添加显色棒
+            cbar_ax = fig.add_subplot(gs[:, -1])  # 全图共享显色棒
+            fig.colorbar(cax, cax=cbar_ax, orientation="vertical")
+
+            # 保存当前图到 PDF 文件中
+            if attn_idx == 0:
+                save_path_layer = save_path.replace(".pdf", f"_layer{layer_idx + 1}_attn{attn_idx + 1}_variate{sample_idx1}.pdf")
+            else:
+                save_path_layer = save_path.replace(".pdf", f"_layer{layer_idx + 1}_attn{attn_idx + 1}_seg{sample_idx2}.pdf")
+            plt.savefig(save_path_layer, format="pdf", bbox_inches="tight")
+            plt.close(fig)
+
+    print(f"All attention visualizations saved as individual PDF files with base name '{save_path}'")
+
 
 
 def adjustment(gt, pred):

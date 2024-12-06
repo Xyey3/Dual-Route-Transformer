@@ -31,7 +31,7 @@ python -u run.py \
   --model $model_name \
   --data custom \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 192 \
   --e_layers 2 \
@@ -51,7 +51,7 @@ python -u run.py \
   --model $model_name \
   --data custom \
   --features M \
-  --seg_num 4 \
+  --seg_num 12 \
   --seq_len 96 \
   --pred_len 336 \
   --e_layers 2 \
@@ -59,10 +59,9 @@ python -u run.py \
   --dec_in 8 \
   --c_out 8 \
   --des 'Exp' \
-  --itr 1 \
   --d_model 128 \
   --d_ff 128 \
-  --train_epochs 1
+  --itr 1 \
 
 python -u run.py \
   --is_training 1 \
@@ -72,7 +71,7 @@ python -u run.py \
   --model $model_name \
   --data custom \
   --features M \
-  --seg_num $seg_num\
+  --seg_num 3 \
   --seq_len 96 \
   --pred_len 720 \
   --e_layers 2 \

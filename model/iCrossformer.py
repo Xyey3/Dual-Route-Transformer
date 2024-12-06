@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from layers.Transformer_EncDec import Encoder, CrossEncLayer
-from layers.SelfAttention_Family import TwoStageAttentionLayer
+from layers.SelfAttention_Family import DynamicTwoStageAttentionLayer,TwoStageAttentionLayer
 from layers.Embed import DSW_embedding
 from einops import rearrange, repeat
 import numpy as np
@@ -18,23 +18,40 @@ class Model(nn.Module):
         self.pred_len = configs.pred_len
         self.output_attention = configs.output_attention
         self.use_norm = configs.use_norm
+        self.fac_num = configs.enc_in
         # Embedding
         self.enc_embedding = DSW_embedding(configs.seq_len // configs.seg_num, configs.d_model, configs.dropout)
         self.class_strategy = configs.class_strategy
+        self.seg_len = configs.seq_len//configs.seg_num
         # Encoder-only architecture
-        self.encoder = Encoder(
-            [
-                CrossEncLayer(
-                    TwoStageAttentionLayer(configs.seg_num, configs.factor, configs.d_model, configs.n_heads, configs.d_ff, configs.dropout),
-                    configs.d_model,
-                    configs.d_ff,
-                    dropout=configs.dropout,
-                    activation=configs.activation
-                ) for l in range(configs.e_layers)
-            ],
-            norm_layer=torch.nn.LayerNorm(configs.d_model)
-        )
-        self.projection = nn.Linear(configs.seg_num * configs.d_model, configs.pred_len, bias=True)
+        if configs.dynamic_routing:
+            self.encoder = Encoder(
+                [
+                    CrossEncLayer(
+                        DynamicTwoStageAttentionLayer(configs.seg_num, self.fac_num, configs.d_model, configs.n_heads, configs.d_ff, configs.dropout),
+                        configs.d_model,
+                        configs.d_ff,
+                        dropout=configs.dropout,
+                        activation=configs.activation
+                    ) for l in range(configs.e_layers)
+                ],
+                norm_layer=torch.nn.LayerNorm(configs.d_model)
+            )
+            self.projection = nn.Linear(configs.seg_num * configs.d_model, configs.pred_len, bias=True)
+        else:
+            self.encoder = Encoder(
+                [
+                    CrossEncLayer(
+                        TwoStageAttentionLayer(configs.seg_num, configs.factor, configs.d_model, configs.n_heads, configs.d_ff, configs.dropout),
+                        configs.d_model,
+                        configs.d_ff,
+                        dropout=configs.dropout,
+                        activation=configs.activation
+                    ) for l in range(configs.e_layers)
+                ],
+                norm_layer=torch.nn.LayerNorm(configs.d_model)
+            )
+            self.projection = nn.Linear(configs.seg_num * configs.d_model, configs.pred_len, bias=True)
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         if self.use_norm:
@@ -69,8 +86,8 @@ class Model(nn.Module):
             dec_out = dec_out * (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
             dec_out = dec_out + (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
 
-        return dec_out
+        return dec_out, attns
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
-        dec_out = self.forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
-        return dec_out[:, -self.pred_len:, :]  # [B, L, D]
+        dec_out, attns = self.forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
+        return dec_out[:, -self.pred_len:, :], attns  # [B, L, D]

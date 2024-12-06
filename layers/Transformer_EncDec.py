@@ -7,8 +7,8 @@ class CrossEncLayer(nn.Module):
         self.attention = attention
 
     def forward(self, x, attn_mask=None, tau=None, delta=None):
-        y= self.attention(x)
-        return y, None   
+        y, attns= self.attention(x)
+        return y, attns   
 
 class ConvLayer(nn.Module):
     def __init__(self, c_in):
@@ -29,7 +29,6 @@ class ConvLayer(nn.Module):
         x = self.maxPool(x)
         x = x.transpose(1, 2)
         return x
-
 
 class EncoderLayer(nn.Module):
     def __init__(self, attention, d_model, d_ff=None, dropout=0.1, activation="relu"):
