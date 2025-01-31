@@ -1,6 +1,7 @@
 export CUDA_VISIBLE_DEVICES=0
 
-model_name=iTransformer
+model_name=iCrossformer
+seg_num=12
 
 python -u run.py \
   --is_training 1 \
@@ -10,6 +11,7 @@ python -u run.py \
   --model $model_name \
   --data Solar \
   --features M \
+  --seg_num $seg_num\
   --seq_len 96 \
   --pred_len 96 \
   --e_layers 2 \
@@ -30,6 +32,7 @@ python -u run.py \
   --model $model_name \
   --data Solar \
   --features M \
+  --seg_num $seg_num\
   --seq_len 96 \
   --pred_len 192 \
   --e_layers 2 \
@@ -51,6 +54,7 @@ python -u run.py \
   --model $model_name \
   --data Solar \
   --features M \
+  --seg_num $seg_num\
   --seq_len 96 \
   --pred_len 336 \
   --e_layers 2 \
@@ -72,6 +76,7 @@ python -u run.py \
   --model $model_name \
   --data Solar \
   --features M \
+  --seg_num $seg_num\
   --seq_len 96 \
   --pred_len 720 \
   --e_layers 2 \
