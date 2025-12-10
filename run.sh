@@ -1,13 +1,13 @@
 # mainresult
-# bash ./scripts/multivariate_forecasting/ECL/iCrossformer.sh
-# bash ./scripts/multivariate_forecasting/ETT/iCrossformer_ETTh1.sh
-# bash ./scripts/multivariate_forecasting/ETT/iCrossformer_ETTh2.sh
-# bash ./scripts/multivariate_forecasting/ETT/iCrossformer_ETTm1.sh
-# bash ./scripts/multivariate_forecasting/ETT/iCrossformer_ETTm2.sh
-# bash ./scripts/multivariate_forecasting/Exchange/iCrossformer.sh
-# bash ./scripts/multivariate_forecasting/SolarEnergy/iCrossformer.sh
-# bash ./scripts/multivariate_forecasting/Traffic/iCrossformer.sh
-# bash ./scripts/multivariate_forecasting/Weather/iCrossformer.sh
+bash ./scripts/multivariate_forecasting/ECL/DRFormer.sh
+bash ./scripts/multivariate_forecasting/ETT/DRFormer_ETTh1.sh
+bash ./scripts/multivariate_forecasting/ETT/DRFormer_ETTh2.sh
+bash ./scripts/multivariate_forecasting/ETT/DRFormer_ETTm1.sh
+bash ./scripts/multivariate_forecasting/ETT/DRFormer_ETTm2.sh
+bash ./scripts/multivariate_forecasting/Exchange/DRFormer.sh
+bash ./scripts/multivariate_forecasting/SolarEnergy/DRFormer.sh
+bash ./scripts/multivariate_forecasting/Traffic/DRFormer.sh
+bash ./scripts/multivariate_forecasting/Weather/DRFormer.sh
 
 # Ablation Study
 # # iTransofrmer(1-DSW+MSA)
@@ -31,40 +31,40 @@
 # bash ./scripts/ablation_study/12-DSW+MSA/Exchange/DSW_iTransformer.sh
 # bash ./scripts/ablation_study/12-DSW+MSA/SolarEnergy/DSW_iTransformer.sh
 # # 1-DSW+DTSA
-# bash ./scripts/ablation_study/1-DSW+DTSA/ETT/iCrossformer_ETTh1.sh
-# bash ./scripts/ablation_study/1-DSW+DTSA/ETT/iCrossformer_ETTm2.sh
-# bash ./scripts/ablation_study/1-DSW+DTSA/Exchange/iCrossformer.sh
-# bash ./scripts/ablation_study/1-DSW+DTSA/SolarEnergy/iCrossformer.sh
+# bash ./scripts/ablation_study/1-DSW+DTSA/ETT/Dual-Route-Transformer_ETTh1.sh
+# bash ./scripts/ablation_study/1-DSW+DTSA/ETT/Dual-Route-Transformer_ETTm2.sh
+# bash ./scripts/ablation_study/1-DSW+DTSA/Exchange/Dual-Route-Transformer.sh
+# bash ./scripts/ablation_study/1-DSW+DTSA/SolarEnergy/Dual-Route-Transformer.sh
 # # 3-DSW+DTSA
-# bash ./scripts/ablation_study/3-DSW+DTSA/ETT/iCrossformer_ETTh1.sh
-# bash ./scripts/ablation_study/3-DSW+DTSA/ETT/iCrossformer_ETTm2.sh
-# bash ./scripts/ablation_study/3-DSW+DTSA/Exchange/iCrossformer.sh
-# bash ./scripts/ablation_study/3-DSW+DTSA/SolarEnergy/iCrossformer.sh
+# bash ./scripts/ablation_study/3-DSW+DTSA/ETT/Dual-Route-Transformer_ETTh1.sh
+# bash ./scripts/ablation_study/3-DSW+DTSA/ETT/Dual-Route-Transformer_ETTm2.sh
+# bash ./scripts/ablation_study/3-DSW+DTSA/Exchange/Dual-Route-Transformer.sh
+# bash ./scripts/ablation_study/3-DSW+DTSA/SolarEnergy/Dual-Route-Transformer.sh
 # # 6-DSW+DTSA
-# bash ./scripts/ablation_study/6-DSW+DTSA/ETT/iCrossformer_ETTh1.sh
-# bash ./scripts/ablation_study/6-DSW+DTSA/ETT/iCrossformer_ETTm2.sh
-# bash ./scripts/ablation_study/6-DSW+DTSA/Exchange/iCrossformer.sh
-# bash ./scripts/ablation_study/6-DSW+DTSA/SolarEnergy/iCrossformer.sh
+# bash ./scripts/ablation_study/6-DSW+DTSA/ETT/Dual-Route-Transformer_ETTh1.sh
+# bash ./scripts/ablation_study/6-DSW+DTSA/ETT/Dual-Route-Transformer_ETTm2.sh
+# bash ./scripts/ablation_study/6-DSW+DTSA/Exchange/Dual-Route-Transformer.sh
+# bash ./scripts/ablation_study/6-DSW+DTSA/SolarEnergy/Dual-Route-Transformer.sh
 # # 12-DSW+DTSA
-# bash ./scripts/ablation_study/12-DSW+DTSA/ETT/iCrossformer_ETTh1.sh
-# bash ./scripts/ablation_study/12-DSW+DTSA/ETT/iCrossformer_ETTm2.sh
-# bash ./scripts/ablation_study/12-DSW+DTSA/Exchange/iCrossformer.sh
-# bash ./scripts/ablation_study/12-DSW+DTSA/SolarEnergy/iCrossformer.sh
+# bash ./scripts/ablation_study/12-DSW+DTSA/ETT/Dual-Route-Transformer_ETTh1.sh
+# bash ./scripts/ablation_study/12-DSW+DTSA/ETT/Dual-Route-Transformer_ETTm2.sh
+# bash ./scripts/ablation_study/12-DSW+DTSA/Exchange/Dual-Route-Transformer.sh
+# bash ./scripts/ablation_study/12-DSW+DTSA/SolarEnergy/Dual-Route-Transformer.sh
 
 # Impact of Segments
-# bash ./scripts/seg_num/3/ECL/iCrossformer.sh
-# bash ./scripts/seg_num/3/ETT/iCrossformer_ETTh2.sh
-# bash ./scripts/seg_num/3/ETT/iCrossformer_ETTm1.sh
-# bash ./scripts/seg_num/3/SolarEnergy/iCrossformer.sh
-# bash ./scripts/seg_num/6/ECL/iCrossformer.sh
-# bash ./scripts/seg_num/6/ETT/iCrossformer_ETTh2.sh
-# bash ./scripts/seg_num/6/ETT/iCrossformer_ETTm1.sh
-# bash ./scripts/seg_num/6/SolarEnergy/iCrossformer.sh
-# bash ./scripts/seg_num/8/ECL/iCrossformer.sh
-# bash ./scripts/seg_num/8/ETT/iCrossformer_ETTh2.sh
-# bash ./scripts/seg_num/8/ETT/iCrossformer_ETTm1.sh
-# bash ./scripts/seg_num/8/SolarEnergy/iCrossformer.sh
-# bash ./scripts/seg_num/12/ECL/iCrossformer.sh
-# bash ./scripts/seg_num/12/ETT/iCrossformer_ETTh2.sh
-# bash ./scripts/seg_num/12/ETT/iCrossformer_ETTm1.sh
-# bash ./scripts/seg_num/12/SolarEnergy/iCrossformer.sh
+# bash ./scripts/seg_num/3/ECL/Dual-Route-Transformer.sh
+# bash ./scripts/seg_num/3/ETT/Dual-Route-Transformer_ETTh2.sh
+# bash ./scripts/seg_num/3/ETT/Dual-Route-Transformer_ETTm1.sh
+# bash ./scripts/seg_num/3/SolarEnergy/Dual-Route-Transformer.sh
+# bash ./scripts/seg_num/6/ECL/Dual-Route-Transformer.sh
+# bash ./scripts/seg_num/6/ETT/Dual-Route-Transformer_ETTh2.sh
+# bash ./scripts/seg_num/6/ETT/Dual-Route-Transformer_ETTm1.sh
+# bash ./scripts/seg_num/6/SolarEnergy/Dual-Route-Transformer.sh
+# bash ./scripts/seg_num/8/ECL/Dual-Route-Transformer.sh
+# bash ./scripts/seg_num/8/ETT/Dual-Route-Transformer_ETTh2.sh
+# bash ./scripts/seg_num/8/ETT/Dual-Route-Transformer_ETTm1.sh
+# bash ./scripts/seg_num/8/SolarEnergy/Dual-Route-Transformer.sh
+# bash ./scripts/seg_num/12/ECL/Dual-Route-Transformer.sh
+# bash ./scripts/seg_num/12/ETT/Dual-Route-Transformer_ETTh2.sh
+# bash ./scripts/seg_num/12/ETT/Dual-Route-Transformer_ETTm1.sh
+# bash ./scripts/seg_num/12/SolarEnergy/Dual-Route-Transformer.sh

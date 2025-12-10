@@ -6,7 +6,7 @@ import random
 import numpy as np
 
 if __name__ == '__main__':
-    fix_seed = 2023
+    fix_seed = 2026
     random.seed(fix_seed)
     torch.manual_seed(fix_seed)
     np.random.seed(fix_seed)
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--d_layers', type=int, default=1, help='num of decoder layers')
     parser.add_argument('--d_ff', type=int, default=2048, help='dimension of fcn')
     parser.add_argument('--seg_num', type=int, default=3, help='input sequence number')
-    parser.add_argument('--dynamic_routing', type=int, default=1, help='Whether to use dynamic routing')
+    parser.add_argument('--dynamic_routing', type=int, default=0, help='Whether to use dynamic routing')
     parser.add_argument('--moving_avg', type=int, default=25, help='window size of moving average')
     parser.add_argument('--factor', type=int, default=10, help='attn factor')
     parser.add_argument('--distil', action='store_false',
@@ -61,13 +61,16 @@ if __name__ == '__main__':
     # optimization
     parser.add_argument('--num_workers', type=int, default=10, help='data loader num workers')
     parser.add_argument('--itr', type=int, default=1, help='experiments times')
-    parser.add_argument('--train_epochs', type=int, default=10, help='train epochs')
+    parser.add_argument('--train_epochs', type=int, default=50, help='train epochs')
     parser.add_argument('--batch_size', type=int, default=16, help='batch size of train input data')
     parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
     parser.add_argument('--learning_rate', type=float, default=0.00005, help='optimizer learning rate')
     parser.add_argument('--des', type=str, default='test', help='exp description')
     parser.add_argument('--loss', type=str, default='MSE', help='loss function')
-    parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
+    parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate (type1//warmup/warmup_cosine/slow/constant)')
+    parser.add_argument('--warmup_epochs', type=int, default=5, help='epochs for linear warmup when using --lradj warmup')
+    parser.add_argument('--type1_interval', type=int, default=1, help='epoch interval to halve lr when lradj=type1')
+    parser.add_argument('--decay_interval', type=int, default=5, help='for slow decay: interval (in epochs) to halve lr')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 
     # GPU
@@ -76,7 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
     parser.add_argument('--devices', type=str, default='0,1,2,3', help='device ids of multile gpus')
 
-    # iCrossformer
+    # Dual-Route-Transformer
     parser.add_argument('--exp_name', type=str, required=False, default='MTSF',
                         help='experiemnt name, options:[MTSF, partial_train]')
     parser.add_argument('--channel_independence', type=bool, default=False, help='whether to use channel_independence mechanism')

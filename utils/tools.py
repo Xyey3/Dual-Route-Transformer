@@ -8,25 +8,70 @@ import pandas as pd
 
 plt.switch_backend('agg')
 
-
 def adjust_learning_rate(optimizer, epoch, args):
-    # lr = args.learning_rate * (0.2 ** (epoch // 2))
+    # safe getters
+    warmup_epochs = getattr(args, 'warmup_epochs', 5)
+    total_epochs = getattr(args, 'train_epochs', 50)
+    decay_interval = getattr(args, 'decay_interval', 5)
+    interval = getattr(args, 'type1_interval', 1)
+    
+    # 1) warmup only (linear warmup to args.learning_rate)
+    if args.lradj == 'warmup':
+        if epoch <= warmup_epochs:
+            lr = args.learning_rate * epoch / max(1, warmup_epochs)
+        else:
+            lr = args.learning_rate
+        for g in optimizer.param_groups:
+            g['lr'] = lr
+        print(f'Warmup LR -> {lr:.6g}')
+        return
+
+    # 2) warmup + cosine (useful)
+    if args.lradj == 'warmup_cosine' or args.lradj == 'cosine':
+        # linear warmup then cosine decay
+        if epoch <= warmup_epochs:
+            lr = args.learning_rate * epoch / max(1, warmup_epochs)
+        else:
+            # cosine decay from epoch = warmup_epochs..total_epochs
+            t = (epoch - warmup_epochs) / max(1, (total_epochs - warmup_epochs))
+            lr = 0.5 * args.learning_rate * (1 + math.cos(math.pi * t))
+        for g in optimizer.param_groups:
+            g['lr'] = lr
+        print(f'Warmup+Cosine LR -> {lr:.6g}')
+        return
+
+    # 3) slow decay (halve every n epochs)
+    if args.lradj == 'slow':
+        decay_times = epoch // decay_interval
+        lr = args.learning_rate * (0.5 ** decay_times)
+        for g in optimizer.param_groups:
+            g['lr'] = lr
+        print(f'Slow Decay LR -> {lr:.6g}')
+        return
+
+    # 4) improved type1: decay every x epochs instead of every epoch
     if args.lradj == 'type1':
-        lr_adjust = {epoch: args.learning_rate * (0.5 ** ((epoch - 1) // 1))}
-    elif args.lradj == 'type2':
-        lr_adjust = {
-            2: 5e-5, 4: 1e-5, 6: 5e-6, 8: 1e-6,
-            10: 5e-7, 15: 1e-7, 20: 5e-8
-        }
-    if epoch in lr_adjust.keys():
-        lr = lr_adjust[epoch]
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-        print('Updating learning rate to {}'.format(lr))
+        lr = args.learning_rate * (0.5 ** ((epoch - 1) // interval))
+        for g in optimizer.param_groups:
+            g['lr'] = lr
+        print(f'Type1 LR -> {lr:.6g}')
+        return
 
+    # 5) constant / none
+    if args.lradj == 'constant' or args.lradj == 'none':
+        for g in optimizer.param_groups:
+            g['lr'] = args.learning_rate
+        return
 
+    # fallback
+    for g in optimizer.param_groups:
+        g['lr'] = args.learning_rate
+    print(f'Fallback const LR -> {args.learning_rate:.6g}')
+    
+    
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0):
+    """Early stops the training if validation loss doesn't improve after a given patience."""
+    def __init__(self, patience=3, verbose=False, delta=0):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
@@ -34,27 +79,72 @@ class EarlyStopping:
         self.early_stop = False
         self.val_loss_min = np.Inf
         self.delta = delta
+        self.last_checkpoint = None
 
     def __call__(self, val_loss, model, path):
+        """Check validation loss and update checkpoint state.
+        Behavior:
+        - Save model when validation loss improves.
+        - Increase counter when validation loss does not improve.
+        - Trigger early stop when counter >= patience and then restore the best saved model.
+        """
         score = -val_loss
+
+        # On first observed validation, save and initialize best score.
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(val_loss, model, path)
-        elif score < self.best_score + self.delta:
+            return
+
+        # Validation loss did not improve.
+        if score < self.best_score + self.delta:
             self.counter += 1
-            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            print(f"EarlyStopping counter: {self.counter} out of {self.patience}")
+
+            # Trigger early stopping when patience exceeded: restore best model once.
             if self.counter >= self.patience:
+                print("Early stopping triggered. Restoring best model...")
+                self.load_checkpoint(model)
                 self.early_stop = True
+
+        # Validation loss improved: save checkpoint and reset counter.
         else:
             self.best_score = score
             self.save_checkpoint(val_loss, model, path)
             self.counter = 0
 
     def save_checkpoint(self, val_loss, model, path):
+        """Save model state_dict to 'checkpoint.pth' under the given path."""
+        # Ensure the directory exists.
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+
         if self.verbose:
-            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
-        torch.save(model.state_dict(), path + '/' + 'checkpoint.pth')
+            print(f"Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}). Saving model...")
+
+        # Construct checkpoint file path and save only the model weights.
+        checkpoint_path = os.path.join(path, "checkpoint.pth")
+        torch.save(model.state_dict(), checkpoint_path)
+
+        # Update tracking variables.
         self.val_loss_min = val_loss
+        self.last_checkpoint = checkpoint_path
+
+    def load_checkpoint(self, model):
+        """Load the best saved model weights into the provided model."""
+        if self.last_checkpoint is None or not os.path.exists(self.last_checkpoint):
+            print("No checkpoint found to restore.")
+            return
+
+        # Load onto the device where the model currently lives.
+        try:
+            device = next(model.parameters()).device
+        except StopIteration:
+            device = "cpu"
+
+        checkpoint = torch.load(self.last_checkpoint, map_location=device)
+        model.load_state_dict(checkpoint)
+        print("Best model restored.")
 
 
 class dotdict(dict):

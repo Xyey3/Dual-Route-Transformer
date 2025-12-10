@@ -1,8 +1,7 @@
 import os
 import torch
-from model import Informer, Reformer, Flowformer, Flashformer, \
-    iTransformer, iInformer, iReformer, iFlowformer, iFlashformer, cTransformer, \
-    RCrossformer, cCrossformer,iCrossformer,DSW_iTransformer
+from model import DRFormer, Informer, Reformer, Flowformer, Flashformer, iTransformer, iInformer, iReformer, iFlowformer, iFlashformer, cTransformer, \
+    RCrossformer, cCrossformer,DSW_iTransformer
 
 
 class Exp_Basic(object):
@@ -21,7 +20,7 @@ class Exp_Basic(object):
             'cTransformer':cTransformer,
             'RCrossformer':RCrossformer,
             'cCrossformer':cCrossformer,
-            'iCrossformer':iCrossformer,
+            'DRFormer':DRFormer,
             'DSW_iTransformer':DSW_iTransformer,
         }
         self.device = self._acquire_device()

@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
+from torch import einsum
 import numpy as np
 from math import sqrt
 from utils.masking import TriangularCausalMask, ProbMask
 from reformer_pytorch import LSHSelfAttention
 from einops import rearrange,repeat
-
+from layers.mamba import *
 
 # Code implementation from https://github.com/thuml/Flowformer
 class FlowAttention(nn.Module):
@@ -132,7 +133,7 @@ class FlashAttention(nn.Module):
 
 
 class FullAttention(nn.Module):
-    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=True):
+    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
         super(FullAttention, self).__init__()
         self.scale = scale
         self.mask_flag = mask_flag
@@ -334,7 +335,7 @@ class TwoStageAttentionLayer(nn.Module):
     The Two Stage Attention (TSA) Layer
     input/output shape: [batch_size, Data_dim(D), Seg_num(L), d_model]
     '''
-    def __init__(self, seg_num, factor, d_model, n_heads, d_ff=None, dropout=0.1):
+    def __init__(self, seg_num, factor, var_num, d_model, n_heads, d_ff=None, dropout=0.1):
         super(TwoStageAttentionLayer, self).__init__()
         d_ff = d_ff or 4 * d_model
         self.time_attention = AttentionLayer(FullAttention(False, attention_dropout=dropout), d_model, n_heads)
@@ -395,42 +396,109 @@ class TwoStageAttentionLayer(nn.Module):
 
         return final_out, (time_attn, sender_attn, receiver_attn)
 
-class DynamicRoutingLayer(nn.Module):
-    def __init__(self, seg_num, fac_num, d_model, update_rate=0.3):
-        super(DynamicRoutingLayer, self).__init__()
-        self.d_model = d_model
-        self.seg_num = seg_num
-        self.update_rate = update_rate  # Controls the update step size
-        self.router = nn.Parameter(torch.randn(seg_num, fac_num, d_model))
+    # def forward(self, queries):
+    #     '''
+    #     queries: [batch, D, L, d_model]
+    #     '''
+    #     batch = queries.shape[0]
 
+    #     # ==============================
+    #     # 1️⃣ Cross-Dimension Stage
+    #     # ==============================
+    #     dim_in = rearrange(queries, 'b ts_d seg_num d_model -> (b seg_num) ts_d d_model', b=batch)
+
+    #     # broadcast learnable router
+    #     batch_router = repeat(self.router, 'seg_num factor d_model -> (repeat seg_num) factor d_model', repeat=batch)
+
+    #     # sender & receiver attention
+    #     dim_buffer, sender_attn = self.dim_sender(batch_router, dim_in, dim_in, None)
+    #     dim_receive, receiver_attn = self.dim_receiver(dim_in, dim_buffer, dim_buffer, None)
+
+    #     dim_enc = dim_in + self.dropout(dim_receive)
+    #     dim_enc = self.norm1(dim_enc)
+    #     dim_enc = dim_enc + self.dropout(self.MLP1(dim_enc))
+    #     dim_enc = self.norm2(dim_enc)
+
+    #     # reshape back
+    #     time_in = rearrange(dim_enc, '(b seg_num) ts_d d_model -> (b ts_d) seg_num d_model', b=batch)
+
+    #     # ==============================
+    #     # 2️⃣ Cross-Time Stage
+    #     # ==============================
+    #     time_enc, time_attn = self.time_attention(time_in, time_in, time_in, None)
+
+    #     time_out = time_in + self.dropout(time_enc)
+    #     time_out = self.norm3(time_out)
+    #     time_out = time_out + self.dropout(self.MLP2(time_out))
+    #     time_out = self.norm4(time_out)
+
+    #     # ==============================
+    #     # Output reshape
+    #     # ==============================
+    #     final_out = rearrange(time_out, '(b ts_d) seg_num d_model -> b ts_d seg_num d_model', b=batch)
+
+    #     return final_out, (sender_attn, receiver_attn, time_attn)
+
+# class DynamicRoutingLayer(nn.Module):
+#     def __init__(self, seg_num, var_num, d_model, update_rate=0.3):
+#         super(DynamicRoutingLayer, self).__init__()
+#         self.d_model = d_model
+#         self.seg_num = seg_num
+#         self.update_rate = update_rate  # Controls the update step size
+#         self.router = nn.Parameter(torch.randn(seg_num, var_num, d_model))
+
+#     def forward(self, inputs):
+#         """
+#         Args:
+#             inputs: Tensor of shape [(batch, seg_num), var_num, d_model]
+#         Returns:
+#             Updated router after dynamic routing.
+#         """
+#         # Compute similarity matrix to generate relationships between dimensions
+#         similarity = torch.bmm(inputs, inputs.transpose(1, 2))  # [(batch * seg_num), var_num, var_num]
+
+#         # Compute routing weights using softmax
+#         routing_weights = nn.functional.softmax(similarity, dim=-1)  # [(batch * seg_num), var_num, var_num]
+
+#         # Expand router to match batch size and segments
+#         batch_router = repeat(self.router, 's v d -> (b s) v d', b=inputs.shape[0] // self.seg_num)
+
+#         # Update router using routing weights
+#         updated_router = torch.bmm(routing_weights, batch_router)  # [(batch * seg_num), var_num, d_model]
+#         updated_router=nn.functional.softmax(updated_router, dim=1)
+
+#         return (1 - self.update_rate) * batch_router + batch_router * updated_router
+      
+class DynamicRoutingLayer(nn.Module):
+    def __init__(self, factor, var_num, d_model):
+        super(DynamicRoutingLayer, self).__init__()
+        self.router = nn.Parameter(torch.randn(factor, d_model))
+        self.d_conv = 3
+        self.conv1d = nn.Conv1d(
+            in_channels=var_num,
+            out_channels=factor,
+            kernel_size=1,     
+        )
+        self.norm = nn.LayerNorm(d_model)
+        self.act = nn.GELU()
+        
     def forward(self, inputs):
         """
         Args:
-            inputs: Tensor of shape [(batch, seg_num), fac_num, d_model]
+            inputs: Tensor of shape [(batch, seg_num), var_num, d_model]
         Returns:
             Updated router after dynamic routing.
         """
-        # Compute similarity matrix to generate relationships between dimensions
-        similarity = torch.bmm(inputs, inputs.transpose(1, 2))  # [(batch * seg_num), fac_num, fac_num]
-
-        # Compute routing weights using softmax
-        routing_weights = nn.functional.softmax(similarity, dim=-1)  # [(batch * seg_num), fac_num, fac_num]
-
-        # Expand router to match batch size and segments
-        batch_router = repeat(self.router, 's f d -> (b s) f d', b=inputs.shape[0] // self.seg_num)
-
-        # Update router using routing weights
-        updated_router = torch.bmm(routing_weights, batch_router)  # [(batch * seg_num), fac_num, d_model]
-        updated_router=nn.functional.softmax(updated_router, dim=1)
-
-        return (1 - self.update_rate) * batch_router + batch_router * updated_router
-
+        inputs = self.conv1d(inputs)                   # [(b, s), factor, d_model]   
+        inputs = self.act(self.norm(inputs))
+        return F.normalize(inputs * self.router, dim=-1)
+      
 class DynamicTwoStageAttentionLayer(nn.Module):
     '''
     The Two Stage Attention (TSA) Layer
-    input/output shape: [batch_size, Data_dim(D), Seg_num(L), d_model]
+    input/output shape: [batch_size, Variable_dim(V), Seg_num(L), d_model]
     '''
-    def __init__(self, seg_num, fac_num, d_model, n_heads, d_ff=None, dropout=0.1):
+    def __init__(self, factor, var_num, d_model, n_heads, d_ff=None, dropout=0.1):
         super(DynamicTwoStageAttentionLayer, self).__init__()
         d_ff = d_ff or 4 * d_model
         self.time_attention = AttentionLayer(FullAttention(False, attention_dropout=dropout), d_model, n_heads)
@@ -439,7 +507,7 @@ class DynamicTwoStageAttentionLayer(nn.Module):
         # self.router = nn.Parameter(torch.randn(seg_num, factor, d_model))
 
         # dynamic_routing
-        self.dynamic_routing = DynamicRoutingLayer(seg_num, fac_num ,d_model, dropout)
+        self.dynamic_routing = DynamicRoutingLayer(factor, var_num ,d_model)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -466,7 +534,7 @@ class DynamicTwoStageAttentionLayer(nn.Module):
 
         time_in = rearrange(queries, 'b v seg_num d_model -> (b v) seg_num d_model')
 
-        time_enc, time_attn = self.time_attention(
+        time_enc, time_attn = self.time_attention( 
             time_in,
             time_in,
             time_in,
@@ -479,7 +547,7 @@ class DynamicTwoStageAttentionLayer(nn.Module):
 
         # Cross Dimension Stage: use a small set of learnable vectors to aggregate and distribute messages to build the D-to-D connection
         dim_send = rearrange(dim_in, '(b v) seg_num d_model -> (b seg_num) v d_model', b = batch)
-        batch_router = self.dynamic_routing(dim_send.detach())
+        batch_router = self.dynamic_routing(dim_send)
 
         dim_buffer, sender_attn = self.dim_sender(batch_router, dim_send, dim_send, None)
         dim_receive, receiver_attn = self.dim_receiver(dim_send, dim_buffer, dim_buffer, None)
@@ -489,6 +557,162 @@ class DynamicTwoStageAttentionLayer(nn.Module):
         dim_enc = dim_enc + self.dropout(self.MLP2(dim_enc))
         dim_enc = self.norm4(dim_enc)
         
-        final_out = rearrange(dim_enc, '(b seg_num) ts_d d_model -> b ts_d seg_num d_model', b = batch)
+        final_out = rearrange(dim_enc, '(b seg_num) v d_model -> b v seg_num d_model', b = batch)
 
         return final_out, (time_attn, sender_attn, receiver_attn)
+    
+class SCX_Block(nn.Module): # Sparse Cluster Extractor 
+    def __init__(self,seg_num, var_num, heads, d_model, attn_dropout, groups=10, return_full_attn=False):
+        super().__init__()
+        self.num_per_group = max(math.ceil(var_num / groups), 1)
+        self.gather_layer = nn.Conv1d(groups * self.num_per_group, groups, groups=groups, kernel_size=1)
+        self.dropout = nn.Dropout(attn_dropout)
+        self.seg_num = seg_num
+        self.q, self.k, self.v = nn.Linear(d_model, d_model), nn.Linear(d_model, d_model), nn.Linear(d_model, d_model)
+        self.out = nn.Sequential(nn.Linear(d_model, d_model), nn.Dropout(attn_dropout))
+        self.cluster = nn.Parameter(torch.randn(seg_num, groups, d_model))
+        self.groups, self.heads, self.scale = groups, heads, d_model / heads
+        self.return_full_attn = return_full_attn
+
+    def forward(self, x):
+        # x: [(b seg_num), var_num, d_model]
+        bs, var_num, d_model = x.shape
+        b=bs//self.seg_num
+        h, d_h, K = self.heads, d_model // self.heads, self.num_per_group
+        x = torch.log(F.relu(x) + 1.0)
+        cluster = repeat(self.cluster, 'seg_num groups d_model -> (repeat seg_num) groups d_model', repeat = b)
+
+        q = self.q(cluster).reshape(bs, self.groups, h, d_h).permute(0, 2, 1, 3)  # [bs, h, groups, var_num]
+        k = self.k(x).reshape(bs, var_num, h, d_h).permute(0, 2, 1, 3)
+        v = self.v(x).reshape(bs, var_num, h, d_h).permute(0, 2, 1, 3)
+
+        scores = torch.matmul(q, k.transpose(-1, -2)) * (self.scale ** -0.5)     # [bs, h, groups, var_num]
+        topk_scores, idx = torch.topk(scores, k=K, dim=-1)                       # [bs, h, groups, K]
+        attn_k = F.softmax(topk_scores, dim=-1)
+        attn_k = self.dropout(attn_k)
+
+        idx_expanded = idx.unsqueeze(-1).expand(-1, -1, -1, -1, d_h)             # [bs, h, groups, K, d_h]
+        xx_ = torch.take_along_dim(v.unsqueeze(2), idx_expanded, dim=3)          # [bs, h, groups, K, d_h]
+        x = self.gather_layer(xx_.reshape(bs * h, self.groups * K, d_h))          # [bs*h, groups, d_h]
+        x = x.reshape(bs, h, -1, d_h)
+        # x = torch.exp((x - x.min()) / (x.max() - x.min() + 1e-12))
+        x_min = x.min(dim=-1, keepdim=True)[0]  # shape: [bs, h, g, d_h]
+        x_max = x.max(dim=-1, keepdim=True)[0]  # shape: [bs, h, g, d_h]
+        # 避免除以0
+        denom = (x_max - x_min).clamp(min=1e-6)
+        x = (x - x_min) / denom
+        x = torch.exp(x)
+        
+        out = self.out(rearrange(x, 'bs h g d_h -> bs g (h d_h)', h=h))
+
+        if self.return_full_attn:
+            full_attn = F.softmax(scores, dim=-1)
+            full_attn = self.dropout(full_attn)
+            return out, full_attn
+        else:
+            return out, (attn_k, idx)
+    
+class DualRouteInteractionBlock(nn.Module):
+    '''
+    Dual-Route Interaction (DRI) Block
+    Input/Output shape: [batch_size, Data_dim(D), Seg_num(L), d_model]
+    - Route 1: Temporal Path (within each variable)
+    - Route 2: Dimensional Path with Sparse Routing (across variables)
+    '''
+    def __init__(self, seg_num, factor, var_num, d_model, n_heads, d_ff=None, dropout=0.1):
+        super().__init__()
+        d_ff = d_ff or 4 * d_model
+
+        # ----- Temporal (Time-axis) Attention -----
+        self.temporal_attn = AttentionLayer(
+            FullAttention(False, attention_dropout=dropout),
+            d_model,
+            n_heads
+        )
+
+        # ----- Dimension-axis Routing (Sender: SCX, Receiver: Attention) -----
+        self.dim_router_sender = SCX_Block(
+            seg_num, var_num, n_heads, d_model, dropout, groups=factor
+        )
+        self.dim_router_receiver = AttentionLayer(
+            FullAttention(False, attention_dropout=dropout),
+            d_model,
+            n_heads
+        )
+
+        self.dropout = nn.Dropout(dropout)
+
+        # LayerNorms
+        self.norm_temporal_1 = nn.LayerNorm(d_model)
+        self.norm_temporal_2 = nn.LayerNorm(d_model)
+        self.norm_dim_1 = nn.LayerNorm(d_model)
+        self.norm_dim_2 = nn.LayerNorm(d_model)
+
+        # Feed-forward Networks
+        self.ffn_temporal = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.GELU(),
+            nn.Linear(d_ff, d_model)
+        )
+        self.ffn_dimensional = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.GELU(),
+            nn.Linear(d_ff, d_model)
+        )
+
+        # Final projection example (unchanged)
+        self.linear_pred = nn.Linear(d_model, 56)
+
+    def forward(self, queries):
+        batch = queries.shape[0]
+
+        # ========== Stage 1: Temporal Path (Intra-variable attention) ==========
+        temporal_input = rearrange(
+            queries,
+            'b v seg_num d_model -> (b v) seg_num d_model'
+        )
+
+        temporal_context, temporal_attn_map = self.temporal_attn(
+            temporal_input, temporal_input, temporal_input, None
+        )
+
+        temporal_res = temporal_input + self.dropout(temporal_context)
+        temporal_norm = self.norm_temporal_1(temporal_res)
+
+        temporal_ffn_out = temporal_norm + self.dropout(self.ffn_temporal(temporal_norm))
+        temporal_out = self.norm_temporal_2(temporal_ffn_out)
+
+        # ========== Stage 2: Dimension Path (Inter-variable routing) ==========
+        # reshape to merge batch & seg, keep variables as sequence
+        dim_tokens_in = rearrange(
+            temporal_out,
+            '(b v) seg_num d_model -> (b seg_num) v d_model',
+            b=batch
+        )
+
+        # ---- Sender (SCX sparse cluster routing) ----
+        route_tokens, route_select_attn = self.dim_router_sender(dim_tokens_in)
+
+        # ---- Receiver (message distribution back to variables) ----
+        dim_message, route_distribute_attn = self.dim_router_receiver(
+            dim_tokens_in, route_tokens, route_tokens, None
+        )
+
+        dim_res = dim_tokens_in + self.dropout(dim_message)
+        dim_norm = self.norm_dim_1(dim_res)
+
+        dim_ffn_out = dim_norm + self.dropout(self.ffn_dimensional(dim_norm))
+        dim_out = self.norm_dim_2(dim_ffn_out)
+
+        # ========== Restore original shape (B, D, L, d_model) ==========
+        output_tensor = rearrange(
+            dim_out,
+            '(b seg_num) v d_model -> b v seg_num d_model',
+            b=batch
+        )
+
+        return output_tensor, (
+            temporal_attn_map,
+            route_select_attn,
+            route_distribute_attn
+        )
