@@ -1,5 +1,6 @@
-export CUDA_VISIBLE_DEVICES=0
 
+fix_seed=${FIX_SEED}
+echo "Running DRFormer with fix_seed=$fix_seed"
 model_name=DRFormer
 seg_num=3
 
@@ -11,7 +12,7 @@ python -u run.py \
   --model $model_name \
   --data ETTh1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 96 \
   --e_layers 2 \
@@ -21,7 +22,9 @@ python -u run.py \
   --des 'Exp' \
   --d_model 256 \
   --d_ff 256 \
-  --itr 1
+  --itr 1 \
+  --fix_seed $fix_seed 
+
 
 python -u run.py \
   --is_training 1 \
@@ -31,7 +34,7 @@ python -u run.py \
   --model $model_name \
   --data ETTh1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 192 \
   --e_layers 2 \
@@ -41,7 +44,8 @@ python -u run.py \
   --des 'Exp' \
   --d_model 256 \
   --d_ff 256 \
-  --itr 1
+  --itr 1 \
+  --fix_seed $fix_seed 
 
 python -u run.py \
   --is_training 1 \
@@ -51,7 +55,7 @@ python -u run.py \
   --model $model_name \
   --data ETTh1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 336 \
   --e_layers 2 \
@@ -59,9 +63,10 @@ python -u run.py \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
-  --d_model 256 \
-  --d_ff 256 \
-  --itr 1
+  --d_model 512 \
+  --d_ff 512 \
+  --itr 1 \
+  --fix_seed $fix_seed 
 
 python -u run.py \
   --is_training 1 \
@@ -71,14 +76,15 @@ python -u run.py \
   --model $model_name \
   --data ETTh1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 720 \
-  --e_layers 1 \
+  --e_layers 2 \
   --enc_in 7 \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
-  --itr 1
+  --itr 1 \
+  --fix_seed $fix_seed 

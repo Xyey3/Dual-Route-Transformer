@@ -20,6 +20,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
     def _build_model(self):
         model = self.model_dict[self.args.model].Model(self.args).float()
 
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"[Model Params] Total: {total_params:,} | Trainable: {trainable_params:,}")
+
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
         return model
@@ -80,6 +84,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         return total_loss
 
     def train(self, setting):
+        self.first_epoch_time = None
+        self.first_epoch_peak_mem = None
+        
         train_data, train_loader = self._get_data(flag='train')
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
@@ -99,11 +106,14 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
+        torch.cuda.reset_peak_memory_stats(self.device)
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
 
             self.model.train()
+            if epoch == 0 and self.args.use_gpu:
+                torch.cuda.synchronize()
             epoch_time = time.time()
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
@@ -162,7 +172,14 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     loss.backward()
                     model_optim.step()
 
-            print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
+            epoch_cost = time.time() - epoch_time
+            print("Epoch: {} cost time: {}".format(epoch + 1, epoch_cost))
+            if epoch == 0:
+                torch.cuda.synchronize()
+                self.first_epoch_time = epoch_cost
+                self.first_epoch_peak_mem = (
+                    torch.cuda.max_memory_allocated(self.device) / 1024**2
+                )
             train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
@@ -260,14 +277,25 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         print('test shape:', preds.shape, trues.shape)
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
-        print('mse:{}, mae:{}'.format(mse, mae))
+        # print('mse:{}, mae:{}'.format(mse, mae))
+        # f = open("result_long_term_forecast.txt", 'a')
+        # f.write(setting + "  \n")
+        # f.write('mse:{}, mae:{}'.format(mse, mae))
+        # f.write('\n')
+        # f.write('\n')
+        # f.close()
+        line = f"mse:{mse}, mae:{mae}"
+        if hasattr(self, "first_epoch_time") and self.first_epoch_time is not None:
+            line += (
+                f", epoch_time:{self.first_epoch_time:.2f}s"
+                f", mem:{self.first_epoch_peak_mem:.1f}MB"
+            )
+        print(line)
         f = open("result_long_term_forecast.txt", 'a')
-        f.write(setting + "  \n")
-        f.write('mse:{}, mae:{}'.format(mse, mae))
-        f.write('\n')
-        f.write('\n')
+        f.write(setting + "\n")
+        f.write(line + "\n\n")
         f.close()
-
+        
         return
 
 

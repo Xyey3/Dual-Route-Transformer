@@ -1,5 +1,6 @@
-export CUDA_VISIBLE_DEVICES=0
 
+fix_seed=${FIX_SEED}
+echo "Running DRFormer with fix_seed=$fix_seed"
 model_name=DRFormer
 seg_num=6
 
@@ -21,10 +22,9 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
-  --batch_size 32 \
-  --learning_rate 0.0002 \
-  --itr 1
-#mse:0.19517016410827637, mae:0.23343588411808014
+  --learning_rate 0.00025 \
+  --itr 1 \
+  --fix_seed $fix_seed
 
 python -u run.py \
   --is_training 1 \
@@ -44,11 +44,9 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
-  --batch_size 32 \
-  --learning_rate 0.0002 \
-  --itr 1
-#mse:0.2305482178926468, mae:0.26018059253692627
-
+  --learning_rate 0.0005 \
+  --itr 1 \
+  --fix_seed $fix_seed
 
 python -u run.py \
   --is_training 1 \
@@ -68,10 +66,9 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
-  --batch_size 32 \
-  --learning_rate 0.0002 \
-  --itr 1
-#mse:0.24104715883731842, mae:0.2701610326766968
+  --learning_rate 0.00025 \
+  --itr 1 \
+  --fix_seed $fix_seed
 
 python -u run.py \
   --is_training 1 \
@@ -91,7 +88,7 @@ python -u run.py \
   --des 'Exp' \
   --d_model 512 \
   --d_ff 512 \
-  --batch_size 32 \
-  --learning_rate 0.0002 \
-  --itr 1
-#mse:0.24601921439170837, mae:0.2752878665924072
+  --patience 1 \
+  --learning_rate 0.00025 \
+  --itr 1 \
+  --fix_seed $fix_seed

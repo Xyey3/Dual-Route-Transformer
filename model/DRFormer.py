@@ -2,73 +2,103 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from layers.Transformer_EncDec import Encoder, CrossEncLayer
-from layers.SelfAttention_Family import DualRouteInteractionBlock
-from layers.Embed import DSW_embedding
+from layers.SelfAttention_Family import DualRouteInteractionBlock, DualRouteInteractionBlock_, RouteFusion
+from layers.Embed import DataEmbedding_inverted, DSW_embedding
 from einops import rearrange, repeat
 import numpy as np
 
 class Model(nn.Module):
     def __init__(self, configs):
         super(Model, self).__init__()
+
+        # B: batch_size;    D: d_model;
+        # L: seq_len;       P: pred_len;
+        # V: number of variate (tokens), can also includes covariates
+        # N: Seg_num
+        # K: Groups
+
         self.seq_len = configs.seq_len
         self.pred_len = configs.pred_len
-        self.output_attention = configs.output_attention
         self.use_norm = configs.use_norm
         self.var_num = configs.enc_in
-        # Embedding
-        self.enc_embedding = DSW_embedding(configs.seq_len // configs.seg_num, configs.d_model, configs.dropout)
-        self.class_strategy = configs.class_strategy
-        self.seg_len = configs.seq_len//configs.seg_num
-        # Encoder-only architecture
+
+        self.seg_num = configs.seg_num
+
+        # embedding (segmented)
+        # Input:  [B, L, V]
+        # Output: [B, V, N, D]
+        self.embedding = DSW_embedding(
+            configs.seq_len // configs.seg_num,
+            configs.d_model,
+            configs.dropout
+        )
+
+        # Encoder
+        # Output shape after each block: [B, V, D]
         self.encoder = Encoder(
             [
                 CrossEncLayer(
-                    DualRouteInteractionBlock(configs.seg_num, configs.factor, self.var_num, configs.d_model, configs.n_heads, configs.d_ff, configs.dropout),
+                    DualRouteInteractionBlock_(
+                        configs.seg_num,
+                        configs.factor,
+                        self.var_num,
+                        configs.d_model,
+                        configs.n_heads,
+                        configs.d_ff,
+                        configs.dropout
+                    ),
                     configs.d_model,
                     configs.d_ff,
                     dropout=configs.dropout,
                     activation=configs.activation
-                ) for l in range(configs.e_layers)
+                )
+                for _ in range(configs.e_layers)
             ],
-            norm_layer=torch.nn.LayerNorm(configs.d_model)
+            
         )
-        self.projection = nn.Linear(configs.seg_num * configs.d_model, configs.pred_len, bias=True)
+        self.dim_norm=nn.LayerNorm(configs.d_model)
+        
+        self.projection = nn.Linear(
+            configs.seg_num * configs.d_model,
+            configs.pred_len,
+            bias=True
+        )        
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
+        # x_enc: [B, L, V]
         if self.use_norm:
-            # Normalization from Non-stationary Transformer 
             means = x_enc.mean(1, keepdim=True).detach()
             x_enc = x_enc - means
-            stdev = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
-            x_enc /= stdev
+            stdev = torch.sqrt(
+                torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5
+            )
+            x_enc = x_enc / stdev
 
-        _, _, N = x_enc.shape # B L N
-        # B: batch_size;    E: d_model; 
-        # L: seq_len;       S: pred_len;
-        # N: number of variate (tokens), can also includes covariates
-        # K: Seg_num
+        # embedding
+        # [B, L, V] -> [B, V, N, D]
+        x_enc = self.embedding(x_enc)          # [B, V, N, D]
+        
+        # Dual-route encoder
+        # Output: [B, V, D], [B, V, N, D]
+        output, attns = self.encoder(x_enc, attn_mask=None)
+        output = self.dim_norm(output)
+        
+        # flatten segment & feature
+        # project back to D
+        output = rearrange(output, 'B V N D -> B V (N D)')   # [B, V, N*D]
 
-        # Embedding
-        enc_out = self.enc_embedding(x_enc)
-        # [B, N, K, E]
-
-        enc_out, attns = self.encoder(enc_out, attn_mask=None)
-        # [B, N, K, E]
-
-        dec_out=rearrange(enc_out, 'batch_size Data_dim Seg_num d_model -> batch_size Data_dim (Seg_num d_model)')
-        # [B, N, K*E] 
-
-        dec_out=self.projection(dec_out).transpose(1,2)
-        # [B, N, S] 
-        # [B, S, N] 
+        # Prediction
+        # [B, V, N*D] -> [B, P, V]
+        dec_out = self.projection(output).transpose(1, 2)
 
         if self.use_norm:
-            # De-Normalization from Non-stationary Transformer
-            dec_out = dec_out * (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
-            dec_out = dec_out + (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
+            dec_out = dec_out * stdev[:, 0, :].unsqueeze(1)
+            dec_out = dec_out + means[:, 0, :].unsqueeze(1)
 
         return dec_out, attns
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
-        dec_out, attns = self.forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
-        return dec_out[:, -self.pred_len:, :], attns  # [B, L, D]
+        dec_out, attns = self.forecast(
+            x_enc, x_mark_enc, x_dec, x_mark_dec
+        )
+        return dec_out[:, -self.pred_len:, :], attns

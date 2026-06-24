@@ -5,19 +5,23 @@ from experiments.exp_long_term_forecasting_partial import Exp_Long_Term_Forecast
 import random
 import numpy as np
 
-if __name__ == '__main__':
-    fix_seed = 2026
-    random.seed(fix_seed)
-    torch.manual_seed(fix_seed)
-    np.random.seed(fix_seed)
+def set_seed(seed):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
-    parser = argparse.ArgumentParser(description='iTransformer')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='DRFormer')
+
+    # set_seed
+    parser.add_argument('--fix_seed', type=int, default=2026, help='Random seed value') 
+    parser.add_argument('--random_seed', type=int, default=None, help='official PatchTST random seed alias')
 
     # basic config
     parser.add_argument('--is_training', type=int, required=True, default=1, help='status')
     parser.add_argument('--model_id', type=str, required=True, default='test', help='model id')
     parser.add_argument('--model', type=str, required=True, default='iTransformer',
-                        help='model name, options: [iTransformer, iInformer, iReformer, iFlowformer, iFlashformer]')
+                        help='model name, options: [DRFormer, iTransformer, DSW_iTransformer, SCXFormer, S-Mamba, PatchTST, Autoformer]')
 
     # data loader
     parser.add_argument('--data', type=str, required=True, default='custom', help='dataset type')
@@ -45,6 +49,22 @@ if __name__ == '__main__':
     parser.add_argument('--d_layers', type=int, default=1, help='num of decoder layers')
     parser.add_argument('--d_ff', type=int, default=2048, help='dimension of fcn')
     parser.add_argument('--seg_num', type=int, default=3, help='input sequence number')
+    parser.add_argument('--patch_len', type=int, default=16, help='patch length for PatchTST')
+    parser.add_argument('--stride', type=int, default=8, help='patch stride for PatchTST')
+    parser.add_argument('--fc_dropout', type=float, default=None, help='forecast head dropout for PatchTST')
+    parser.add_argument('--head_dropout', type=float, default=None, help='prediction head dropout for PatchTST')
+    parser.add_argument('--padding_patch', type=str, default='end', help='patch padding mode for PatchTST')
+    parser.add_argument('--revin', type=int, default=1, help='RevIN switch for official PatchTST scripts')
+    parser.add_argument('--affine', type=int, default=0, help='RevIN affine switch for official PatchTST scripts')
+    parser.add_argument('--subtract_last', type=int, default=0, help='RevIN subtract-last switch for official PatchTST scripts')
+    parser.add_argument('--decomposition', type=int, default=0, help='decomposition switch for official PatchTST scripts')
+    parser.add_argument('--kernel_size', type=int, default=25, help='decomposition kernel size for official PatchTST scripts')
+    parser.add_argument('--individual', type=int, default=0, help='individual head switch for official PatchTST scripts')
+    parser.add_argument('--pct_start', type=float, default=0.3, help='pct_start for PatchTST OneCycle learning rate')
+    parser.add_argument('--d_state', type=int, default=None, help='state size for official S-Mamba scripts')
+    parser.add_argument('--mamba_d_state', type=int, default=16, help='state size for S-Mamba')
+    parser.add_argument('--mamba_d_conv', type=int, default=4, help='local convolution width for S-Mamba')
+    parser.add_argument('--mamba_expand', type=int, default=2, help='expansion factor for S-Mamba')
     parser.add_argument('--dynamic_routing', type=int, default=0, help='Whether to use dynamic routing')
     parser.add_argument('--moving_avg', type=int, default=25, help='window size of moving average')
     parser.add_argument('--factor', type=int, default=10, help='attn factor')
@@ -67,7 +87,7 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=0.00005, help='optimizer learning rate')
     parser.add_argument('--des', type=str, default='test', help='exp description')
     parser.add_argument('--loss', type=str, default='MSE', help='loss function')
-    parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate (type1//warmup/warmup_cosine/slow/constant)')
+    parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate (type1/TST/warmup/warmup_cosine/slow/constant)')
     parser.add_argument('--warmup_epochs', type=int, default=5, help='epochs for linear warmup when using --lradj warmup')
     parser.add_argument('--type1_interval', type=int, default=1, help='epoch interval to halve lr when lradj=type1')
     parser.add_argument('--decay_interval', type=int, default=5, help='for slow decay: interval (in epochs) to halve lr')
@@ -95,6 +115,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
+    if args.random_seed is not None:
+        args.fix_seed = args.random_seed
+
+    fix_seed = args.fix_seed
+    set_seed(fix_seed)
+
+    print(f"Running with fix_seed={fix_seed}")
+    
+
     if args.use_gpu and args.use_multi_gpu:
         args.devices = args.devices.replace(' ', '')
         device_ids = args.devices.split(',')
@@ -108,7 +137,6 @@ if __name__ == '__main__':
         Exp = Exp_Long_Term_Forecast_Partial
     else: # MTSF: multivariate time series forecasting
         Exp = Exp_Long_Term_Forecast
-
 
     if args.is_training:
         for ii in range(args.itr):
@@ -134,7 +162,7 @@ if __name__ == '__main__':
                 args.class_strategy, ii)
 
             exp = Exp(args)  # set experiments
-            print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+            print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))           
             exp.train(setting)
 
             print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

@@ -57,7 +57,15 @@ def adjust_learning_rate(optimizer, epoch, args):
         print(f'Type1 LR -> {lr:.6g}')
         return
 
-    # 5) constant / none
+    # 5) PatchTST official scripts use a OneCycle scheduler in their training loop.
+    # This project keeps a per-epoch LR hook, so keep the official flag accepted and stable here.
+    if args.lradj == 'TST':
+        for g in optimizer.param_groups:
+            g['lr'] = args.learning_rate
+        print(f'TST LR -> {args.learning_rate:.6g}')
+        return
+
+    # 6) constant / none
     if args.lradj == 'constant' or args.lradj == 'none':
         for g in optimizer.param_groups:
             g['lr'] = args.learning_rate

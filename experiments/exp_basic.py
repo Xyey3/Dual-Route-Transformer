@@ -1,27 +1,20 @@
 import os
 import torch
-from model import DRFormer, Informer, Reformer, Flowformer, Flashformer, iTransformer, iInformer, iReformer, iFlowformer, iFlashformer, cTransformer, \
-    RCrossformer, cCrossformer,DSW_iTransformer
+from model import Autoformer, DRFormer, DSW_iTransformer, PatchTST, SCXFormer, S_Mamba, iTransformer
 
 
 class Exp_Basic(object):
     def __init__(self, args):
         self.args = args
         self.model_dict = {
-            'Informer': Informer,
-            'Reformer': Reformer,
-            'Flowformer': Flowformer,
-            'Flashformer': Flashformer,
             'iTransformer': iTransformer,
-            'iInformer': iInformer,
-            'iReformer': iReformer,
-            'iFlowformer': iFlowformer,
-            'iFlashformer': iFlashformer,
-            'cTransformer':cTransformer,
-            'RCrossformer':RCrossformer,
-            'cCrossformer':cCrossformer,
-            'DRFormer':DRFormer,
-            'DSW_iTransformer':DSW_iTransformer,
+            'DRFormer': DRFormer,
+            'DSW_iTransformer': DSW_iTransformer,
+            'SCXFormer': SCXFormer,
+            'S-Mamba': S_Mamba,
+            'S_Mamba': S_Mamba,
+            'PatchTST': PatchTST,
+            'Autoformer': Autoformer,
         }
         self.device = self._acquire_device()
         self.model = self._build_model().to(self.device)

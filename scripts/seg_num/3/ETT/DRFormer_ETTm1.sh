@@ -1,7 +1,9 @@
-export CUDA_VISIBLE_DEVICES=3
 
+fix_seed=${FIX_SEED}
+echo "Running DRFormer with fix_seed=$fix_seed"
 model_name=DRFormer
 seg_num=3
+learning_rate=5e-5
 
 python -u run.py \
   --is_training 1 \
@@ -11,17 +13,19 @@ python -u run.py \
   --model $model_name \
   --data ETTm1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 96 \
-  --e_layers 2 \
+  --e_layers 2\
   --enc_in 7 \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
   --d_model 128 \
   --d_ff 128 \
-  --itr 1
+  --itr 1 \
+  --learning_rate $learning_rate \
+  --fix_seed $fix_seed
 
 python -u run.py \
   --is_training 1 \
@@ -31,7 +35,7 @@ python -u run.py \
   --model $model_name \
   --data ETTm1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 192 \
   --e_layers 2 \
@@ -41,7 +45,9 @@ python -u run.py \
   --des 'Exp' \
   --d_model 128 \
   --d_ff 128 \
-  --itr 1
+  --itr 1 \
+  --learning_rate $learning_rate \
+  --fix_seed $fix_seed
 
 python -u run.py \
   --is_training 1 \
@@ -51,7 +57,7 @@ python -u run.py \
   --model $model_name \
   --data ETTm1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 336 \
   --e_layers 2 \
@@ -61,7 +67,9 @@ python -u run.py \
   --des 'Exp' \
   --d_model 128 \
   --d_ff 128 \
-  --itr 1
+  --itr 1 \
+  --learning_rate $learning_rate \
+  --fix_seed $fix_seed
 
 python -u run.py \
   --is_training 1 \
@@ -71,7 +79,7 @@ python -u run.py \
   --model $model_name \
   --data ETTm1 \
   --features M \
-  --seg_num $seg_num\
+  --seg_num $seg_num \
   --seq_len 96 \
   --pred_len 720 \
   --e_layers 2 \
@@ -81,4 +89,6 @@ python -u run.py \
   --des 'Exp' \
   --d_model 128 \
   --d_ff 128 \
-  --itr 1
+  --itr 1 \
+  --learning_rate $learning_rate \
+  --fix_seed $fix_seed
